@@ -72,7 +72,8 @@ void printCell(Cell win[3], int r, int c) {
   } else if (ch == 'O') {
     printf(O_COLOR " O " RESET);
   } else {
-    // taking r, c as 0based indexing, so only r is incrementing by 3 row-wise, col 0,1,2 only.
+    // taking r, c as 0based indexing, so only r is incrementing by 3 row-wise,
+    // col 0,1,2 only.
     printf(DIM " %d " RESET, r * 3 + c + 1);
   }
 }
@@ -116,9 +117,181 @@ void printTurn(char player) {
                     "2 3" RESET INFO_COLOR "\n\n" RESET);
 }
 
+bool checkWin(Cell win[3], char player) {
+  int lines[8][3][2] = {
+      // horizontal line;
+      {{0, 0}, {0, 1}, {0, 2}},
+      {{1, 0}, {1, 1}, {1, 2}},
+      {{2, 0}, {2, 1}, {2, 2}},
+
+      // vertical line;
+      {{0, 0}, {1, 0}, {2, 0}},
+      {{0, 1}, {1, 1}, {2, 1}},
+      {{0, 2}, {1, 2}, {2, 2}},
+
+      // diagonal line;
+      {{0, 0}, {1, 1}, {2, 2}},
+      {{0, 2}, {1, 1}, {2, 0}},
+  };
+
+  for (int i = 0; i < 8; i++) {
+    bool lineMatches = true;
+
+    for (int j = 0; j < 3; j++) {
+      int r = lines[i][j][0];
+      int c = lines[i][j][1];
+      if (board[r][c] != player) {
+        lineMatches = false;
+        break;
+      }
+    }
+
+    if (lineMatches) {
+      for (int j = 0; j < 3; j++) {
+        win[j].r = lines[i][j][0];
+        win[j].c = lines[i][j][1];
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
+bool isBoardFull(void) {
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
+      if (board[i][j] == ' ') {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+void printWinner(char player) {
+  printf(SUCCESS_COLOR " Player " RESET);
+
+  if (player == 'X') {
+    printf(X_COLOR "X" RESET);
+  } else {
+    printf(O_COLOR "O" RESET);
+  }
+
+  printf(SUCCESS_COLOR " wins\n\n" RESET);
+}
+
+bool askPlayAgain(void) {
+  char lines[32];
+  printf(SUCCESS_COLOR " Play again? (y/n): " RESET);
+  fflush(stdout);
+
+  if (fgets(lines, sizeof(lines), stdin) == NULL) {
+    return false;
+  }
+  return lines[0] == 'y' || lines[0] == 'Y';
+}
+
 int main(void) {
-  initBoard();
-  printBoard(NULL);
-  printTurn('X');
+  char input[64];
+  bool play = true;
+
+  clearScreen();
+
+  printf(TITLE_COLOR "  Press Enter to start..." RESET);
+  fflush(stdout);
+
+  if (fgets(input, sizeof(input), stdin) == NULL) {
+    return 0;
+  }
+
+  while (play) {
+    initBoard();
+
+    char player = 'X';
+    bool gameOver = false;
+    char message[128] = "";
+    Cell win[3];
+
+    while (!gameOver) {
+      clearScreen();
+      printBoard(NULL);
+
+      if (message[0] != '\0') {
+        printf(ERROR_COLOR "  %s\n\n" RESET, message);
+      }
+      printTurn(player);
+
+      printf(PROMPT_COLOR "  >  " RESET);
+      fflush(stdout);
+
+      if (fgets(input, sizeof(input), stdin) == NULL) {
+        return 0;
+      }
+
+      int a = 0;
+      int b = 0;
+      int count = sscanf(input, "%d %d", &a, &b);
+      int row = -1, col = -1;
+      bool valid = false;
+
+      if (count == 1) {
+        if (a >= 1 && a <= 9) {
+          row = (a - 1) / 3;
+          col = (a - 1) % 3;
+          valid = true;
+        } else {
+          snprintf(message, sizeof(message),
+                   "Please enter a number from 1 to 9.");
+        }
+      } else if (count == 2) {
+        row = a - 1;
+        col = b - 1;
+        if (row >= 0 && row < 3 && col >= 0 && col < 3) {
+          valid = true;
+        } else {
+          snprintf(message, sizeof(message),
+                   "Row and Column must be between 1 and 3.");
+        }
+      } else {
+        snprintf(message, sizeof(message),
+                 "Enter one number (1-9), or two numbers like: 2 3.");
+      }
+
+      if (!valid) {
+        continue;
+      }
+
+      if (board[row][col] != ' ') {
+        snprintf(message, sizeof(message),
+                 "That cell is already taken. Try another one.");
+        continue;
+      }
+      message[0] = '\0';
+      board[row][col] = player;
+
+      if (checkWin(win, player)) {
+        clearScreen();
+        printBoard(win);
+        printWinner(player);
+        printf("\a");
+        gameOver = true;
+      } else if (isBoardFull()) {
+        clearScreen();
+        printBoard(NULL);
+        printf(TITLE_COLOR " It's a draw!\n\n" RESET);
+        break;
+      } else {
+        player = (player == 'X') ? 'O' : 'X';
+      }
+    }
+
+    if (!askPlayAgain()) {
+      play = false;
+    }
+
+    clearScreen();
+  }
+
+  printf(TITLE_COLOR "  Thanks for playing!\n\n" RESET);
   return 0;
 }
